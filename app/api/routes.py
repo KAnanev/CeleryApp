@@ -1,9 +1,11 @@
 from fastapi import APIRouter
+
+from core.schemas import TaskResponse, TaskRequest
 from tasks.demo import add
 
 router = APIRouter()
 
-@router.post('/tasks')
-async def root():
-    result = add.delay(2,3)
-    return {'message': f'{result}'}
+@router.post('/tasks', response_model=TaskResponse)
+async def create_task(payload: TaskRequest) -> TaskResponse:
+    result = add.delay(payload.first, payload.second)
+    return TaskResponse(task_id=result.id)
