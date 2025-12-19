@@ -1,9 +1,42 @@
-# Celery + Redis — быстрый старт
+# 🚀 FastAPI + Celery + Redis — учебный проект
 
-## 1. Установка зависимостей
+Учебный проект для изучения **Celery** и интеграции его с **FastAPI**.  
+Проект демонстрирует корректную архитектуру фоновых задач, пригодную для продакшена и дипломной работы.
+
+---
+
+## 🧱 Архитектура
+
+- **FastAPI** — принимает HTTP-запросы
+- **Celery** — выполняет фоновые задачи
+- **Redis** — broker + result backend
+- API и Celery worker запускаются **как отдельные процессы**
+
+```text
+Client → FastAPI → Redis (broker) → Celery Worker
+```
+
+---
+
+## 📁 Структура проекта
+
+```text
+app/
+├── main.py                 # FastAPI приложение
+├── core/
+│   └── celery_app.py       # Инициализация Celery
+├── api/
+│   └── routes.py           # HTTP endpoints
+└── tasks/
+    └── demo.py             # Celery задачи
+```
+
+---
+
+## 📦 Установка зависимостей
 
 ```bash
-pip install celery redis
+pip install fastapi uvicorn celery redis
 ```
 
 (опционально для типизации)
@@ -13,17 +46,19 @@ pip install celery-types
 
 ---
 
-## 2. Запуск Redis
+## 🧠 Переменные окружения
 
-### Через Docker (рекомендуется)
 ```bash
-docker run -d --name redis -p 6379:6379 redis:7
+export CELERY_BROKER_URL=redis://localhost:6379/0
+export CELERY_RESULT_BACKEND=redis://localhost:6379/0
 ```
 
-### Через систему (Ubuntu)
+---
+
+## 🟥 Запуск Redis
+
 ```bash
-sudo apt install redis-server
-sudo systemctl start redis
+docker run -d --name redis -p 6379:6379 redis:7
 ```
 
 Проверка:
@@ -34,39 +69,55 @@ redis-cli ping
 
 ---
 
-## 3. Запуск Celery worker
+## ▶️ Запуск FastAPI
 
 ```bash
-celery -A app.celery_app worker -l info
-```
-
-или (для dev / отладки):
-```bash
-celery -A app.celery_app worker -P solo -l info
+uvicorn app.main:app --reload
 ```
 
 ---
 
-## 4. Вызов задачи
+## ⚙️ Запуск Celery worker
 
-```python
-from app.tasks import add
-
-result = add.delay(2, 3)
-print(result.id)
+```bash
+celery -A app.core.celery_app worker -l info
 ```
 
-Проверка статуса:
-```python
-from celery.result import AsyncResult
-
-r = AsyncResult(task_id)
-print(r.status)
-print(r.result)
+Для отладки:
+```bash
+celery -A app.core.celery_app worker -P solo -l info
 ```
 
 ---
 
-## Документация
+## 📬 Вызов фоновой задачи
 
-https://docs.celeryq.dev/en/stable/getting-started/backends-and-brokers/redis.html
+```http
+POST /tasks
+Content-Type: application/json
+
+{
+  "message": "Hello Celery"
+}
+```
+
+Ответ:
+```json
+{
+  "task_id": "uuid"
+}
+```
+
+---
+
+## 📌 Принципы
+
+- Celery app создаётся один раз
+- FastAPI и worker — разные процессы
+- Все настройки через env
+
+---
+
+## 📚 Документация
+
+https://docs.celeryq.dev/en/stable/
