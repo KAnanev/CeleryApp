@@ -1,19 +1,30 @@
-# 🚀 FastAPI + Celery + Redis — учебный проект
 
-Учебный проект для изучения **Celery** и интеграции его с **FastAPI**.  
-Проект демонстрирует корректную архитектуру фоновых задач, пригодную для продакшена и дипломной работы.
+# 🚀 FastAPI + Celery + Redis + Flower
+
+Полноценный учебный и продакшен-ориентированный проект для изучения **Celery**  
+в связке с **FastAPI**, **Redis**, **Celery Beat** и **Flower**.
+
+Проект доведён до состояния, пригодного для:
+- дипломной работы
+- pet-проекта
+- базового продакшен-шаблона
 
 ---
 
 ## 🧱 Архитектура
 
-- **FastAPI** — принимает HTTP-запросы
-- **Celery** — выполняет фоновые задачи
-- **Redis** — broker + result backend
-- API и Celery worker запускаются **как отдельные процессы**
-
 ```text
-Client → FastAPI → Redis (broker) → Celery Worker
+Client
+  ↓
+FastAPI (HTTP API)
+  ↓
+Redis (broker / result backend)
+  ↓
+Celery Worker (фоновые задачи)
+  ↑
+Celery Beat (периодические задачи)
+
+Flower — мониторинг Celery
 ```
 
 ---
@@ -21,103 +32,166 @@ Client → FastAPI → Redis (broker) → Celery Worker
 ## 📁 Структура проекта
 
 ```text
-app/
-├── main.py                 # FastAPI приложение
-├── core/
-│   └── celery_app.py       # Инициализация Celery
-├── api/
-│   └── routes.py           # HTTP endpoints
-└── tasks/
-    └── demo.py             # Celery задачи
+project-root/
+├── docker-compose.yml
+├── .env
+└── app/
+    ├── Dockerfile
+    ├── requirements.txt
+    ├── main.py
+    ├── api/
+    │   └── routes.py
+    ├── core/
+    │   ├── celery_app.py
+    │   ├── config.py
+    │   ├── logging.py
+    │   └── schemas.py
+    ├── tasks/
+    │   ├── __init__.py
+    │   ├── demo.py
+    │   └── maintenance.py
 ```
 
 ---
 
-## 📦 Установка зависимостей
+## ⚙️ Используемые технологии
 
-```bash
-pip install fastapi uvicorn celery redis
-```
+- Python 3.11
+- FastAPI
+- Celery 5
+- Redis 7
+- Celery Beat
+- Flower
+- Docker / Docker Compose
 
-(опционально для типизации)
-```bash
-pip install celery-types
+---
+
+## 🔐 Безопасность
+
+- Redis изолирован в приватной Docker-сети
+- Redis защищён паролем (AUTH)
+- Worker и Beat не имеют публичных интерфейсов
+- Flower защищён basic-auth
+- Все секреты передаются через `.env`
+
+---
+
+## 🧠 Принципы Celery
+
+- **at-least-once delivery**
+- идемпотентные задачи
+- retry только для внешних зависимостей
+- инфраструктурные ошибки решаются инфраструктурой
+
+---
+
+## 🐳 Docker
+
+### Dockerfile
+Используется **один Docker-образ** для:
+- FastAPI
+- Celery worker
+- Celery beat
+- Flower
+
+Контейнеры запускаются под **не-root пользователем**.
+
+---
+
+## ▶️ Запуск проекта
+
+### 1️⃣ Подготовить `.env`
+
+```env
+API_PORT=8000
+FLOWER_PORT=5555
+
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_PASSWORD=supersecret
+
+CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/1
+
+FLOWER_BASIC_AUTH=admin:admin
 ```
 
 ---
 
-## 🧠 Переменные окружения
+### 2️⃣ Запуск
 
 ```bash
-export CELERY_BROKER_URL=redis://localhost:6379/0
-export CELERY_RESULT_BACKEND=redis://localhost:6379/0
+docker compose up --build
 ```
 
 ---
 
-## 🟥 Запуск Redis
+### 3️⃣ Доступы
 
-```bash
-docker run -d --name redis -p 6379:6379 redis:7
-```
+| Сервис | URL |
+|-----|----|
+| FastAPI | http://localhost:8000/docs |
+| Flower | http://localhost:5555 |
+| Redis | доступен только внутри Docker |
 
-Проверка:
-```bash
-redis-cli ping
-# PONG
+---
+
+## 🧪 Примеры задач
+
+### Периодическая задача (Heartbeat)
+
+```python
+@celery_app.task(name='maintenance.heartbeat')
+def heartbeat():
+    count = redis_sync.incr('maintenance:heartbeat:count')
+    logger.info(
+        'heartbeat',
+        extra={
+            'count': count,
+            'task_id': current_task.request.id,
+        },
+    )
 ```
 
 ---
 
-## ▶️ Запуск FastAPI
+## 🩺 Мониторинг
 
-```bash
-uvicorn app.main:app --reload
-```
-
----
-
-## ⚙️ Запуск Celery worker
-
-```bash
-celery -A app.core.celery_app worker -l info
-```
-
-Для отладки:
-```bash
-celery -A app.core.celery_app worker -P solo -l info
-```
+### Flower
+- состояние worker'ов
+- список задач
+- retry / failures
+- состояние broker (Redis)
 
 ---
 
-## 📬 Вызов фоновой задачи
+## 🛑 Остановка
 
-```http
-POST /tasks
-Content-Type: application/json
+Корректная остановка:
 
-{
-  "message": "Hello Celery"
-}
+```bash
+docker compose down
 ```
 
-Ответ:
-```json
-{
-  "task_id": "uuid"
-}
-```
+Контейнерам отправляется `SIGTERM`,  
+Celery корректно завершает работу.
 
 ---
 
-## 📌 Принципы
+## 🏁 Статус проекта
 
-- Celery app создаётся один раз
-- FastAPI и worker — разные процессы
-- Все настройки через env
+✅ Архитектура  
+✅ Docker  
+✅ Celery worker / beat  
+✅ Мониторинг  
+✅ Безопасность  
 
 ---
 
 ## 📚 Документация
 
-https://docs.celeryq.dev/en/stable/
+- Celery — https://docs.celeryq.dev
+- FastAPI — https://fastapi.tiangolo.com
+- Flower — https://flower.readthedocs.io
+
+---
