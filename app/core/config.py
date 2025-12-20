@@ -1,7 +1,8 @@
-from redis.client import Redis
+import logging
+
+from redis import Redis
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
-
 
 load_dotenv()
 
@@ -18,3 +19,4 @@ redis_sync: Redis = Redis(
     port=settings.REDIS_PORT,
     decode_responses=True,
 )
+logger = logging.getLogger('CeleryApp')
