@@ -1,7 +1,11 @@
 import time
 
 from core.celery_app import celery_app
-from core.config import redis_sync, logger
+from core.config import redis_sync
+from core.logging import get_logger
+
+
+logger = get_logger('CeleryApp', component='maintenance')
 
 
 @celery_app.task(

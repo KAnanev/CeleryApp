@@ -133,11 +133,21 @@ run: install
 celery: install
 	$(PYTHON) -m celery -A $(CELERY_APP) worker -l info
 
+# Проверка на наличие задачи
+.PHONY: celery_inspect_registered
+celery_inspect_registered: install
+	$(PYTHON) -m celery -A $(CELERY_APP) inspect registered
+
 # Запуск Flower — web-интерфейса мониторинга Celery
 # Доступен по адресу http://localhost:5555
 .PHONY: flower
 flower: install
 	$(PYTHON) -m celery -A $(CELERY_APP) flower --port=5555
+
+# Запуск Beat — периодические задачи Celery
+.PHONY: beat
+beat: install
+	$(PYTHON) -m celery -A $(CELERY_APP) beat -l info
 
 # ======================================================
 # Stop FastAPI
